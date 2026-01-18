@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  invi-ledger-api:
+    image: ghcr.io/mak-m/invi:${INVI_VERSION:-latest}
+    container_name: invi-ledger-api
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      # Database connection
+      ConnectionStrings__DefaultConnection: "Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Host=postgres;Port=5432;Database=${POSTGRES_DB}"
+      
+      # ASP.NET Core settings
+      ASPNETCORE_ENVIRONMENT: ${ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - invi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/admin/version"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:17
+    container_name: invi-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-InviLedger}
+      POSTGRES_USER: ${POSTGRES_USER:-inviuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
+    networks:
+      - invi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-inviuser}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  invi-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
